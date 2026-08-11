@@ -2,15 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a one-command, unattended, self-hosted danmaku service for Forward and SenPlayer, using Misaka as the normal matching engine and a custom Autopilot gateway for automatic anomaly detection, timeline correction, compilation splitting, maintenance, backup, update, and rollback.
+**Goal:** Build a one-command, unattended, self-hosted danmaku service for Forward and SenPlayer, using Misaka as the primary matching engine, `huangxd-/danmu_api` as the secondary engine, and a custom Autopilot gateway for automatic engine selection, anomaly detection, timeline correction, compilation splitting, maintenance, backup, update, and rollback.
 
-**Architecture:** Native Caddy terminates HTTPS and exposes separate player and admin hostnames. A FastAPI Autopilot gateway transparently proxies the player-facing Dandan-compatible routes to a digest-pinned Misaka container, while persistent background jobs analyze failed or suspicious matches and import corrected XML through Misaka's external-control API. MySQL stores Misaka data; SQLite WAL stores the small Autopilot job/rule database; host-side locked scripts perform backup, update, health checks, and rollback without mounting the Docker socket.
+**Architecture:** Native Caddy terminates HTTPS and exposes separate player and admin hostnames. A FastAPI Autopilot gateway presents one player-facing Dandan-compatible address, routes healthy high-quality requests to digest-pinned Misaka or `danmu_api` containers, and fails over automatically. Persistent background jobs analyze failed or suspicious matches and import corrected XML through Misaka's external-control API. MySQL stores Misaka data; a mounted cache stores `danmu_api` favorites and preferences; SQLite WAL stores the small Autopilot job/rule database; host-side locked scripts perform backup, update, health checks, and rollback without mounting the Docker socket.
 
-**Tech Stack:** Docker Compose v2, `l429609201/misaka_danmu_server`, `mysql:8.1.0-oracle` (the version in the current Misaka quick-start guide), Python 3.12, FastAPI, HTTPX, Pydantic Settings, aiosqlite, defusedxml, RapidFuzz, pytest, Caddy, Bash, systemd, restic-compatible encrypted off-site backups.
+**Tech Stack:** Docker Compose v2, `l429609201/misaka_danmu_server`, `logvar/danmu-api`, `mysql:8.1.0-oracle` (the version in the current Misaka quick-start guide), Python 3.12, FastAPI, HTTPX, Pydantic Settings, aiosqlite, defusedxml, RapidFuzz, pytest, Caddy, Bash, systemd, restic-compatible encrypted off-site backups.
 
 ## Global Constraints
 
 - The deployed Misaka image must resolve to the latest stable release and then be pinned by immutable image digest; beta, alpha, rc, draft, and GitHub prerelease releases are forbidden.
+- The deployed `logvar/danmu-api` image must be pinned by immutable digest. When the upstream has no stable release tag, an update is identified by digest change and must pass the same backup, contract, smoke, and rollback gates as Misaka.
 - MySQL must remain pinned to `mysql:8.1.0-oracle` until a separately tested database-upgrade plan changes it.
 - Redis is not included; Misaka uses its default hybrid cache and Autopilot uses SQLite WAL because the expected maximum is three concurrent devices.
 - The service must work without Emby administrator access, media-directory access, plugins, or webhooks; first playback is the primary trigger.
@@ -21,6 +22,8 @@
 - MySQL, Misaka external-control endpoints, Autopilot administration, and Docker Socket must not be publicly exposed.
 - Secrets must be excluded from Git, stored in files with mode `0600`, and redacted from logs and notifications.
 - The public API must fail open to ordinary Misaka behavior if Autopilot analysis fails, so optional automation cannot remove otherwise available danmaku.
+- Players must configure only the Gateway address. Misaka is the primary engine; `danmu_api` is automatically queried on primary transport failure, unhealthy status, no-match response, or suspicious low-quality match.
+- A same-host secondary engine does not count as regional-network redundancy; per-source proxies and circuit breakers remain required for shared Dallas egress failures.
 - Every automatic upgrade must create a consistent pre-update backup, run external and internal smoke tests, and automatically restore the previous image and database when required.
 - This plan creates local deployment artifacts only. It must not connect to or mutate the user's VPS until the user separately authorizes deployment.
 
@@ -46,6 +49,7 @@ autopilot/src/danmu_autopilot/
   logging.py                        Structured secret-redacting logs
   release.py                        Stable-release selection and image-lock types
   misaka.py                         Typed external-control and proxy client
+  fallback.py                       Typed danmu_api client and dual-engine routing policy
   gateway.py                        Transparent player API proxy
   normalize.py                      Title, filename, season, episode, alias parsing
   xml.py                            XML parsing, transforms, provenance, serialization
@@ -104,6 +108,8 @@ docs/                               Setup, player, proxy, backup, and troublesho
 def test_settings_reject_public_control_api(monkeypatch):
     monkeypatch.setenv("MISAKA_BASE_URL", "http://misaka:7768")
     monkeypatch.setenv("MISAKA_CONTROL_KEY", "secret-control-key")
+    monkeypatch.setenv("DANMU_API_BASE_URL", "http://danmu-api:9321")
+    monkeypatch.setenv("DANMU_API_TOKEN", "secret-backup-token")
     monkeypatch.setenv("STATE_DIR", "/data")
     settings = Settings()
     assert settings.misaka_base_url.host == "misaka"
@@ -154,7 +160,7 @@ class AnalysisResult:
 
 - [ ] **Step 4: Implement validated settings and recursive redaction**
 
-`Settings` must validate internal `http://misaka:7768`, require a non-empty control key, cap scratch space at 500 MiB by default, and expose secrets through `SecretStr`. `redact()` must redact keys matching `token`, `cookie`, `authorization`, `password`, `secret`, and token-looking URL path components.
+`Settings` must validate internal `http://misaka:7768` and `http://danmu-api:9321`, require non-empty independent control and backup-engine keys, cap scratch space at 500 MiB by default, and expose secrets through `SecretStr`. `redact()` must redact keys matching `token`, `cookie`, `authorization`, `password`, `secret`, and token-looking URL path components.
 
 - [ ] **Step 5: Run unit tests and static checks**
 
@@ -177,7 +183,7 @@ git commit -m "chore: scaffold danmaku autopilot"
 
 ---
 
-### Task 2: Stable Misaka Release Resolver and Immutable Image Lock
+### Task 2: Stable Misaka and Backup-Engine Image Resolver
 
 **Files:**
 - Create: `deploy/images.lock.example`
@@ -189,7 +195,7 @@ git commit -m "chore: scaffold danmaku autopilot"
 **Interfaces:**
 - Produces: CLI `python ops/resolve-images.py --lock deploy/images.lock`.
 - Produces: `select_latest_stable(releases: list[dict[str, object]]) -> dict[str, object]` and immutable `ImageLock` in `danmu_autopilot.release`; the CLI is a thin wrapper around these tested functions.
-- Produces lock keys: `MISAKA_RELEASE`, `MISAKA_IMAGE`, `MISAKA_DIGEST`, `MYSQL_IMAGE`, `AUTOPILOT_IMAGE`.
+- Produces lock keys: `MISAKA_RELEASE`, `MISAKA_IMAGE`, `MISAKA_DIGEST`, `DANMU_API_IMAGE`, `DANMU_API_DIGEST`, `MYSQL_IMAGE`, `AUTOPILOT_IMAGE`.
 - Consumes: GitHub Releases API and Docker Registry manifest API; never Docker Hub HTML.
 
 - [ ] **Step 1: Write release-selection tests**
@@ -206,6 +212,10 @@ def test_latest_stable_excludes_prereleases():
 def test_lock_rejects_mutable_reference():
     with pytest.raises(ValueError, match="sha256"):
         ImageLock(misaka_digest="latest")
+
+def test_backup_engine_requires_digest_even_without_release_tag():
+    lock = ImageLock(danmu_api_digest="sha256:" + "b" * 64)
+    assert lock.danmu_api_digest.startswith("sha256:")
 ```
 
 - [ ] **Step 2: Verify the tests fail**
@@ -216,7 +226,7 @@ Expected: FAIL because resolver functions are absent.
 
 - [ ] **Step 3: Implement stable selection and digest resolution**
 
-Selection must require `draft is False`, `prerelease is False`, and reject tag names matching `(?i)(alpha|beta|rc|preview|dev)`. Resolve the image manifest digest after authentication and write the lock atomically with mode `0644`; no credential may enter the file.
+Misaka selection must require `draft is False`, `prerelease is False`, and reject tag names matching `(?i)(alpha|beta|rc|preview|dev)`. Resolve both Misaka and `logvar/danmu-api` manifest digests after authentication and write the lock atomically with mode `0644`; no credential may enter the file. A mutable `latest` label may be queried but must never appear as the deployed reference without `@sha256:`.
 
 - [ ] **Step 4: Test against fixtures and a temporary lock**
 
@@ -233,7 +243,7 @@ git commit -m "feat: resolve immutable stable images"
 
 ---
 
-### Task 3: Secure Docker Compose Foundation
+### Task 3: Secure Dual-Engine Docker Compose Foundation
 
 **Files:**
 - Create: `compose.yaml`
@@ -241,7 +251,7 @@ git commit -m "feat: resolve immutable stable images"
 - Modify: `.env.example`
 
 **Interfaces:**
-- Produces services `mysql`, `misaka`, and `autopilot` on internal network `danmu-internal`.
+- Produces services `mysql`, `misaka`, `danmu-api`, and `autopilot` on internal network `danmu-internal`.
 - Exposes only `127.0.0.1:${MISAKA_BIND_PORT}:7768` and `127.0.0.1:${AUTOPILOT_BIND_PORT}:8080`.
 - Consumes: `deploy/images.lock` and `.env` generated by bootstrap.
 
@@ -257,6 +267,10 @@ def test_only_loopback_ports_are_published(compose):
 
 def test_no_service_mounts_docker_socket(compose):
     assert "/var/run/docker.sock" not in json.dumps(compose)
+
+def test_backup_engine_is_internal_only(compose):
+    assert compose["services"]["danmu-api"].get("ports", []) == []
+    assert "danmu-api-cache" in json.dumps(compose["services"]["danmu-api"]["volumes"])
 ```
 
 - [ ] **Step 2: Run the policy tests and confirm failure**
@@ -267,7 +281,7 @@ Expected: FAIL because `compose.yaml` is missing.
 
 - [ ] **Step 3: Create the Compose topology**
 
-Use `mysql:8.1.0-oracle`, `utf8mb4`, three-day binlog expiry, health-gated startup, named volumes, `restart: unless-stopped`, `no-new-privileges:true`, explicit resource limits, and log rotation. Misaka uses hybrid cache. Autopilot has a read-only root filesystem, writable `/data` and `/scratch` mounts, and a tmpfs `/tmp`.
+Use `mysql:8.1.0-oracle`, `utf8mb4`, three-day binlog expiry, health-gated startup, named volumes, `restart: unless-stopped`, `no-new-privileges:true`, explicit resource limits, and log rotation. Misaka uses hybrid cache. `danmu-api` receives an independent random internal token, persists `/app/.cache` and `/app/config`, and publishes no host port. Autopilot has a read-only root filesystem, writable `/data` and `/scratch` mounts, and a tmpfs `/tmp`.
 
 - [ ] **Step 4: Validate rendered Compose**
 
@@ -346,17 +360,20 @@ git commit -m "feat: add typed Misaka control client"
 
 ---
 
-### Task 5: Transparent Player Gateway with Fail-Open Behavior
+### Task 5: Transparent Player Gateway with Automatic Dual-Engine Failover
 
 **Files:**
 - Create: `autopilot/src/danmu_autopilot/gateway.py`
+- Create: `autopilot/src/danmu_autopilot/fallback.py`
 - Create: `autopilot/src/danmu_autopilot/main.py`
 - Create: `autopilot/tests/test_gateway.py`
+- Create: `autopilot/tests/test_fallback.py`
 
 **Interfaces:**
 - Produces: FastAPI routes `/healthz`, `/readyz`, and catch-all player proxy for all HTTP methods.
+- Produces: `EngineRouter.route(request, context) -> EngineDecision` with engine values `misaka` and `danmu_api`.
 - Produces callback `enqueue_match(context: MatchContext, upstream: UpstreamResult) -> None`.
-- Consumes: `MisakaClient.proxy()` and `redact()`.
+- Consumes: `MisakaClient.proxy()`, internal `danmu_api` compatible endpoints, source circuit state, historical quality scores, and `redact()`.
 
 - [ ] **Step 1: Write streaming and fail-open tests**
 
@@ -373,6 +390,19 @@ async def test_analysis_enqueue_failure_does_not_change_response(client, enqueue
     enqueue.side_effect = RuntimeError("queue unavailable")
     response = await client.post("/device-token/api/v2/match", json={"fileName": "Show.S01E01.mkv"})
     assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_primary_no_match_uses_backup_engine(client, misaka_proxy, danmu_api_proxy):
+    misaka_proxy.return_value = ResponseData(200, [], b'{"isMatched":false}')
+    danmu_api_proxy.return_value = ResponseData(200, [], b'{"isMatched":true,"animeId":8}')
+    response = await client.post("/device-token/api/v2/match", json={"fileName": "Show.S01E01.mkv"})
+    assert response.json()["isMatched"] is True
+    assert response.headers["x-danmu-engine"] == "danmu_api"
+
+@pytest.mark.asyncio
+async def test_unhealthy_backup_never_delays_healthy_primary(router):
+    decision = await router.route(REQUEST, CONTEXT)
+    assert decision.engine == "misaka"
 ```
 
 - [ ] **Step 2: Verify tests fail**
@@ -383,23 +413,25 @@ Expected: FAIL because the application routes are absent.
 
 - [ ] **Step 3: Implement transparent proxying**
 
-Forward method, path, query, selected request headers, body, upstream status, safe response headers, and bytes unchanged. Strip hop-by-hop headers. Enforce request/response limits high enough for danmaku XML but reject unrelated uploads. Schedule analysis only after the upstream body is safely captured and never await the analysis job before returning.
+Forward method, path, query, selected request headers, body, upstream status, safe response headers, and bytes unchanged. Strip hop-by-hop headers. Enforce request/response limits high enough for danmaku XML but reject unrelated uploads. Schedule analysis only after the selected body is safely captured and never await the analysis job before returning.
+
+The router uses Misaka first for cached and exact matches. It queries `danmu_api` on primary transport error, open circuit, explicit no-match, or a suspicious result flagged by filename/season/episode checks. If both return usable results, select by exact season/episode agreement, source priority, cached correction rules, latency only as a tie-breaker, and historical success. Never merge response bodies at the HTTP layer; cross-source merging remains an asynchronous derived-artifact job.
 
 - [ ] **Step 4: Add health semantics**
 
-`/healthz` reports process liveness without dependencies. `/readyz` verifies SQLite and Misaka within two seconds. Neither endpoint includes versions, secrets, source URLs, or exception traces.
+`/healthz` reports process liveness without dependencies. `/readyz` verifies SQLite and requires at least one healthy engine within two seconds. Detailed internal health records Misaka and `danmu_api` separately. Neither endpoint includes versions, secrets, source URLs, or exception traces.
 
 - [ ] **Step 5: Run gateway tests**
 
-Run: `cd autopilot && python -m pytest tests/test_gateway.py -v`
+Run: `cd autopilot && python -m pytest tests/test_gateway.py tests/test_fallback.py -v`
 
 Expected: all tests PASS, including byte-for-byte passthrough and token-redaction assertions.
 
 - [ ] **Step 6: Commit the gateway**
 
 ```bash
-git add autopilot/src/danmu_autopilot/gateway.py autopilot/src/danmu_autopilot/main.py autopilot/tests/test_gateway.py
-git commit -m "feat: proxy player requests through autopilot"
+git add autopilot/src/danmu_autopilot/gateway.py autopilot/src/danmu_autopilot/fallback.py autopilot/src/danmu_autopilot/main.py autopilot/tests/test_gateway.py autopilot/tests/test_fallback.py
+git commit -m "feat: route requests across danmaku engines"
 ```
 
 ---
@@ -903,7 +935,7 @@ Generate a weekly quiet summary containing match success rate, low-confidence co
 
 - [ ] **Step 3: Implement layered health checks**
 
-Check Docker health, MySQL ping, Misaka UI, Misaka control API, Gateway readiness, public API hostname, certificate expiry, disk/inodes, latest backup age, cookie state, and source circuit summary. `--repair` may restart only the named unhealthy application container after capturing logs; it may not restart Docker or delete data.
+Check Docker health, MySQL ping, Misaka UI, Misaka control API, `danmu_api` match/search probes, Gateway readiness, public API hostname, certificate expiry, disk/inodes, latest backup age, cookie state, and source circuit summary. The whole service remains ready when exactly one engine is healthy but reports a degraded warning. `--repair` may restart only the named unhealthy application container after capturing logs; it may not restart Docker or delete data.
 
 - [ ] **Step 4: Add systemd health timer**
 
@@ -948,7 +980,7 @@ def test_scripts_never_recursive_delete_broad_paths(scripts):
 
 - [ ] **Step 2: Implement locked consistent backup**
 
-Use `flock`, run `mysqldump --single-transaction --routines --events --hex-blob`, checkpoint SQLite WAL, archive Misaka config plus Autopilot raw/derived/rules and image lock, hash every file, write manifest last, then atomically rename the completed directory. Keep 14 daily and five pre-update backups.
+Use `flock`, run `mysqldump --single-transaction --routines --events --hex-blob`, checkpoint SQLite WAL, archive Misaka config, `danmu_api` config/favorites/cache, Autopilot raw/derived/rules, and image lock, hash every file, write manifest last, then atomically rename the completed directory. Keep 14 daily and five pre-update backups.
 
 - [ ] **Step 3: Implement verified restore**
 
@@ -1000,11 +1032,11 @@ def test_failed_migration_restores_image_and_database(trace):
 
 - [ ] **Step 2: Implement check mode**
 
-Resolve the latest stable GitHub release and registry digest, compare against `deploy/images.lock`, display release and digest changes, verify free disk and backup freshness, and make no changes in `--check` mode.
+Resolve the latest stable Misaka GitHub release and both registry digests, compare against `deploy/images.lock`, display release and digest changes, verify free disk and backup freshness, and make no changes in `--check` mode. A `danmu_api` digest change is reported separately because it may not have a stable semantic release tag.
 
 - [ ] **Step 3: Implement apply mode as a transaction**
 
-Acquire the global maintenance lock, create pre-update backup, save old lock, pull the new digest, recreate only Misaka, wait for migrations, run internal and public smoke tests, observe a bounded stability window, write a successful-version record, and notify. On any failure restore old lock/image; if database compatibility checks fail, restore the pre-update database and data snapshot before final health check.
+Acquire the global maintenance lock, create pre-update backup, save old lock, pull changed digests, and update only one engine per transaction. For Misaka, wait for migrations; for `danmu_api`, verify cache/config readability. Run engine-specific and public smoke tests, observe a bounded stability window, write a successful-version record, and notify. On any failure restore that engine's old lock/image; if Misaka database compatibility checks fail, restore the pre-update database and data snapshot before final health check. Never update both engines in the same maintenance transaction, preserving a known-good fallback.
 
 - [ ] **Step 4: Implement rollback selector**
 
@@ -1012,7 +1044,7 @@ Acquire the global maintenance lock, create pre-update backup, save old lock, pu
 
 - [ ] **Step 5: Add daily stable-check timer**
 
-Timer runs once daily with randomized delay. It applies stable updates automatically because that is the confirmed user policy. It excludes prereleases and never upgrades MySQL.
+Timer runs once daily with randomized delay. It applies stable Misaka updates and tested `danmu_api` digest updates automatically because that is the confirmed user policy. It excludes prereleases, updates engines one at a time, and never upgrades MySQL.
 
 - [ ] **Step 6: Run simulated update tests and commit**
 
@@ -1060,9 +1092,9 @@ def test_two_hour_padding_becomes_eight_zero_based_episodes(stack):
         assert episode.last_comment_ms <= 1_320_000
 ```
 
-- [ ] **Step 2: Write public-boundary and rollback acceptance tests**
+- [ ] **Step 2: Write dual-engine, public-boundary, and rollback acceptance tests**
 
-Assert player API works through Caddy, admin requires Basic Auth, `/api/control` returns 404 on the player host, secrets do not appear in logs, a simulated bad Misaka image restores the prior digest and database, and local backup restore rehearsal succeeds.
+Assert player API works through Caddy, a stopped Misaka automatically uses `danmu_api`, a stopped `danmu_api` leaves healthy Misaka requests unaffected, admin requires Basic Auth, `/api/control` returns 404 on the player host, secrets do not appear in logs, a simulated bad engine image restores the prior digest and data, and local backup restore rehearsal succeeds.
 
 - [ ] **Step 3: Run the complete automated suite**
 
@@ -1095,7 +1127,7 @@ git commit -m "docs: complete automated danmaku deployment guide"
 
 ## Execution Checkpoints
 
-1. **Foundation checkpoint after Task 5:** Misaka, MySQL, and transparent Gateway run securely; player behavior is unchanged even if Autopilot is disabled.
+1. **Foundation checkpoint after Task 5:** Misaka, `danmu_api`, MySQL, and transparent Gateway run securely; one engine automatically carries requests when the other is unavailable.
 2. **Matching checkpoint after Task 9:** names, XML transforms, anomaly signals, and boundary optimizer pass synthetic tests without live source access.
 3. **Automation checkpoint after Task 13:** authorized sources, persistent pipeline, source routing, Caddy, DNS dry-run, and bootstrap work end to end.
 4. **Operations checkpoint after Task 16:** notification, health, backup, restore, stable update, and rollback simulations pass.
@@ -1106,6 +1138,7 @@ git commit -m "docs: complete automated danmaku deployment guide"
 | Requirement | Verification |
 | --- | --- |
 | Latest stable Misaka | Fixture tests exclude prereleases; deployed image lock contains release and digest |
+| Backup `danmu_api` engine | Digest lock, internal-only Compose policy, no-match and outage failover tests |
 | No Docker Socket | Compose policy test and rendered config inspection |
 | Public player API only | Caddy policy and external HTTP integration tests |
 | Three concurrent Apple devices | real Forward/SenPlayer concurrency check |
