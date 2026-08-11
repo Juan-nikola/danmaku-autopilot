@@ -181,7 +181,12 @@ class MisakaClient:
                     raise MisakaUnavailable(f"Misaka returned {response.status_code}")
                 if int(response.status_code) >= 400:
                     raise MisakaRejected(f"Misaka returned {response.status_code}")
-                headers = tuple((str(k).encode(), str(v).encode()) for k, v in getattr(response, "headers", {}).items())
+                representation_headers = {"content-encoding", "content-length", "transfer-encoding"}
+                headers = tuple(
+                    (str(k).encode(), str(v).encode())
+                    for k, v in getattr(response, "headers", {}).items()
+                    if str(k).lower() not in representation_headers
+                )
                 return ResponseData(int(response.status_code), headers, data, engine="misaka")
             except (MisakaRejected, MisakaContractChanged):
                 raise

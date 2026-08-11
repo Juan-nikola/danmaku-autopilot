@@ -8,7 +8,11 @@ from danmu_autopilot.misaka import (
 
 class FakeResponse:
     status_code = 200
-    headers = {"content-type": "application/json"}
+    headers = {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        "content-length": "42",
+    }
 
     async def aread(self):
         return b'{"success":true,"episodeId":42}'
@@ -88,3 +92,14 @@ async def test_public_v2_player_path_maps_to_misaka_v1_and_preserves_json_conten
     assert method == "POST"
     assert "/api/v1/internal-player-token/match?token=public-token" in url
     assert kwargs["headers"]["content-type"] == "application/json"
+    response_headers = {key.decode().lower() for key, _ in (await client.proxy(
+        type("Request", (), {
+            "method": "GET",
+            "path": "/api/v2/search/anime",
+            "query": "",
+            "body": b"",
+            "headers": (),
+        })()
+    )).headers}
+    assert "content-encoding" not in response_headers
+    assert "content-length" not in response_headers

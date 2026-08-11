@@ -53,9 +53,14 @@ class HttpEngine:
                 url = f"{url}?{urlencode(query, doseq=True)}"
         response = await self.client.request(request.method, url, content=request.body, headers=headers)
         body = await response.aread()
+        representation_headers = {"content-encoding", "content-length", "transfer-encoding"}
         return ResponseData(
             response.status_code,
-            tuple((str(key).encode(), str(value).encode()) for key, value in response.headers.items()),
+            tuple(
+                (str(key).encode(), str(value).encode())
+                for key, value in response.headers.items()
+                if str(key).lower() not in representation_headers
+            ),
             body,
             engine="danmu_api",
         )

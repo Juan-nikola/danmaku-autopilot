@@ -10,7 +10,11 @@ from danmu_autopilot.main import HttpEngine
 
 class _Response:
     status_code = 200
-    headers = {"content-type": "application/json"}
+    headers = {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        "content-length": "42",
+    }
 
     async def aread(self) -> bytes:
         return b'{"isMatched":true}'
@@ -49,3 +53,5 @@ async def test_backup_engine_replaces_public_auth_and_strips_public_query_token(
     assert headers["Authorization"] == "Bearer backup-secret"
     assert headers["X-API-Key"] == "backup-secret"
     assert headers["x-player"] == "keep"
+    assert "content-encoding" not in {key.decode().lower() for key, _ in result.headers}
+    assert "content-length" not in {key.decode().lower() for key, _ in result.headers}
