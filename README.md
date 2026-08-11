@@ -67,6 +67,76 @@ bash -n scripts/*.sh
 
 首次部署使用 `config/env.example`、`scripts/bootstrap.sh --yes`；播放器只填写 Caddy 暴露的网关地址和 `PUBLIC_API_TOKEN`，不要填写 Misaka 控制密钥。
 
+## 从 Mac 部署到已有 VPS
+
+以下示例使用你的 SSH 别名 `sbdvps`。别名只保存在 Mac 的 `~/.ssh/config`，不会上传到仓库。
+
+先确认能登录：
+
+```bash
+ssh sbdvps
+```
+
+在 VPS 上安装当前实现分支（仓库公开，不需要把密码写进命令）：
+
+```bash
+sudo mkdir -p /opt/danmaku-autopilot
+sudo chown -R "$USER":"$USER" /opt/danmaku-autopilot
+git clone -b codex/danmaku-implementation https://github.com/Juan-nikola/danmaku-autopilot.git /opt/danmaku-autopilot
+cd /opt/danmaku-autopilot
+```
+
+首次初始化会生成随机密码、Token、权限为 `0600` 的密钥文件，并从 Docker Registry 解析 Misaka 和 `danmu_api` 的不可变 digest：
+
+```bash
+cp config/env.example .env
+chmod 600 .env
+nano .env                         # 至少修改域名、邮箱和 Caddy 管理密码哈希
+scripts/bootstrap.sh --yes
+```
+
+你的 VPS 已经由 1Panel Caddy 占用 80/443，因此不要再启动第二个 Caddy 容器。初始化后，在 1Panel 的 Caddy/反向代理中新增一个播放器域名，例如 `danmu.example.com`，反向代理到：
+
+```text
+http://127.0.0.1:7770
+```
+
+由 1Panel Caddy 负责 HTTPS。不要把 `7768`、MySQL、`danmu-api` 或 Misaka 控制 API 代理到公网。Misaka 管理页面可以只通过 SSH 隧道访问：
+
+```bash
+ssh -L 7768:127.0.0.1:7768 sbdvps
+```
+
+然后在 Mac 浏览器打开 `http://127.0.0.1:7768`。
+
+### Forward / SenPlayer 设置
+
+播放器只配置网关地址，不配置 Misaka 地址：
+
+```text
+https://danmu.example.com/api?token=你的PUBLIC_API_TOKEN
+```
+
+`PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 `MISAKA_CONTROL_KEY`、`DANMU_API_TOKEN` 或 B 站 Cookie 填入播放器。也可以把 Token 放在 `Authorization: Bearer ...` 或 `X-API-Key` 请求头中。
+
+### 日常维护
+
+```bash
+cd /opt/danmaku-autopilot
+scripts/preflight.sh
+scripts/healthcheck.sh
+scripts/backup.sh --reason manual
+scripts/update.sh --check
+scripts/update.sh --apply --engine misaka
+scripts/rollback.sh latest --yes
+```
+
+可选安装 `systemd/` 下的 backup、health 和 update timer；更新流程会先备份、再使用 digest 更新，健康检查失败时恢复旧版本。VPS 上已有 Watchtower 时，请确认它不会自动改写本项目容器；本项目的更新应优先使用上述事务脚本。
+
+### 资源和安全说明
+
+你的 VPS 只有约 3.8GiB 内存且已有其他容器。首次启动后请运行 `docker stats`；如果内存压力过高，应先降低其他容器资源或调整 Compose 限额，不要直接关闭现有服务。备份目录包含账号凭据和 Cookie，必须保持 `0600`，不要上传 GitHub 或公开网盘。
+
 ## 安全与合规
 
 - 公网只开放播放器需要的兼容 API；数据库和内部控制接口不直接暴露。
