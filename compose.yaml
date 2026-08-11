@@ -40,6 +40,9 @@ services:
   misaka:
     image: ${MISAKA_IMAGE:?MISAKA_IMAGE is required; run scripts/bootstrap.sh}
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - "127.0.0.1:${MISAKA_BIND_PORT:-7768}:7768"
     environment:
@@ -89,6 +92,9 @@ services:
   danmu-api:
     image: ${DANMU_API_IMAGE:?DANMU_API_IMAGE is required; run scripts/bootstrap.sh}
     restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       DANMU_API_TOKEN: ${DANMU_API_TOKEN:?DANMU_API_TOKEN is required}
@@ -99,6 +105,7 @@ services:
       - danmu-api-config:/app/config
     networks:
       - danmu-internal
+      - danmu-egress
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9321/ || exit 1"]
       interval: 20s

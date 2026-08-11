@@ -2,6 +2,8 @@
 
 这套部署把 Misaka 作为主引擎、`danmu_api` 作为同机备用引擎。公网只进入 Caddy；MySQL、Misaka 控制接口和备用引擎没有公网端口。两个引擎共用 Dallas VPS 出口，所以备用引擎不能解决整台 VPS 被国内平台限流的问题。
 
+Misaka 和 `danmu_api` 都连接 `danmu-egress`，并固定使用 `1.1.1.1`、`8.8.8.8` 解析源站域名。这样可以避免某些 VPS 的 Docker 内置 DNS 对 B 站/爱奇艺接口返回 `EAI_AGAIN`；如果 DNS 正常但仍然无匹配，通常是源站超时、地区限制、登录 Cookie 或出口 IP 限流，需要查看对应容器日志，不能靠反复重启解决。
+
 ## 首次初始化
 
 在已经安装 Docker Compose v2、Caddy 和 Git 的 VPS 上：
@@ -56,6 +58,8 @@ https://<DANMU_API_HOST>/api
 ```
 
 `PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 Misaka 控制密钥、备用引擎 Token、Cookie 或 Cloudflare Token 放入播放器。
+
+如果 Dallas 出口仍无法访问某些国内源，Snell“节点服务端”本身不会自动让 Docker 使用代理；必须在 VPS 上另行运行 Snell 客户端，并提供本地 HTTP/SOCKS 监听端口，再把该端口接入来源请求。没有本地监听端口时，不要把 Snell 的服务端端口直接填到这里。
 
 设置 Caddy Basic Auth 时，请把 `caddy hash-password` 输出的 `$2a$...` 整段用单引号包住；脚本会读取 `.env`，未加引号的 `$` 会被 shell 展开。
 

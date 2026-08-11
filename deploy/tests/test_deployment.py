@@ -79,6 +79,18 @@ class ComposePolicyTests(unittest.TestCase):
         self.assertRegex(service.group(1), r"(?m)^\s+- danmu-internal\s*$")
         self.assertRegex(service.group(1), r"(?m)^\s+- danmu-egress\s*$")
 
+    def test_source_services_have_egress_network_and_stable_dns(self) -> None:
+        for name in ("misaka", "danmu-api"):
+            service = re.search(
+                rf"(?ms)^  {name}:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)",
+                self.compose,
+            )
+            self.assertIsNotNone(service)
+            self.assertRegex(service.group(1), r"(?m)^\s+- danmu-egress\s*$")
+            self.assertRegex(service.group(1), r"(?m)^\s+dns:\s*$")
+            self.assertIn("1.1.1.1", service.group(1))
+            self.assertIn("8.8.8.8", service.group(1))
+
 
 class CaddyPolicyTests(unittest.TestCase):
     @classmethod
