@@ -9,6 +9,7 @@ config/.env
 config/*.secret
 
 # Runtime state and user data
+.worktrees/
 state/
 data/
 db-data/
