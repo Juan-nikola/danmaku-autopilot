@@ -7,7 +7,7 @@ import hashlib
 import asyncio
 import json
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode
 
 import httpx
 
@@ -28,16 +28,29 @@ class HttpEngine:
         self.client = httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0), follow_redirects=False)
 
     async def proxy(self, request: EngineRequest) -> ResponseData:
-        headers = {key.decode(errors="ignore"): value.decode(errors="ignore") for key, value in request.headers}
+        # Player requests are authenticated at the public gateway.  Never pass
+        # that credential through to the backup engine: danmu_api expects its
+        # own path/header token and would reject a valid player request.
+        headers = {
+            key.decode(errors="ignore"): value.decode(errors="ignore")
+            for key, value in request.headers
+            if key.decode(errors="ignore").lower() not in {"authorization", "x-api-key"}
+        }
         if self.token:
-            headers.setdefault("Authorization", f"Bearer {self.token}")
-            headers.setdefault("X-API-Key", self.token)
+            headers["Authorization"] = f"Bearer {self.token}"
+            headers["X-API-Key"] = self.token
         path = request.path
         if self.token and path.startswith("/api/v2/"):
             path = f"/{quote(self.token, safe='')}{path}"
         url = f"{self.base_url}/{path.lstrip('/')}"
         if request.query:
-            url = f"{url}?{request.query}"
+            query = [
+                (key, value)
+                for key, value in parse_qsl(request.query, keep_blank_values=True)
+                if key.lower() not in {"token", "api_key", "apikey", "key"}
+            ]
+            if query:
+                url = f"{url}?{urlencode(query, doseq=True)}"
         response = await self.client.request(request.method, url, content=request.body, headers=headers)
         body = await response.aread()
         return ResponseData(
