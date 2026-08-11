@@ -42,6 +42,26 @@ if [[ ! -e "$ENV_FILE" ]]; then
 fi
 chmod 600 "$ENV_FILE"
 
+# An operator may have started from the repository's root .env.example. Merge
+# deployment defaults without overwriting any value they already supplied.
+merge_env_defaults() {
+  local template="$PROJECT_ROOT/config/env.example" tmp line key
+  [[ -f "$template" ]] || die "missing config/env.example"
+  tmp="$(mktemp "${PROJECT_ROOT}/state/.env.merge.XXXXXX")"
+  chmod 600 "$tmp"
+  cp "$ENV_FILE" "$tmp"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^([A-Z][A-Z0-9_]*)= ]] || continue
+    key="${BASH_REMATCH[1]}"
+    if ! grep -qE "^${key}=" "$tmp"; then
+      printf '%s\n' "$line" >>"$tmp"
+    fi
+  done <"$template"
+  mv -f -- "$tmp" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+}
+merge_env_defaults
+
 set_env() {
   local key="$1" value="$2" tmp
   tmp="$(mktemp "${PROJECT_ROOT}/state/.env.XXXXXX")"
