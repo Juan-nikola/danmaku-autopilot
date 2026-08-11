@@ -101,3 +101,15 @@ scripts/rollback.sh <backup-id> --yes
 ```
 
 MySQL 固定为 `mysql:8.1.0-oracle`，不会随应用更新自动升级。
+
+## 自动维护（可选）
+
+仓库提供 systemd 模板。把 `/opt/danmaku-autopilot` 改成实际目录后安装并启用：
+
+```bash
+sudo cp systemd/danmu-{backup,health,update}.service systemd/danmu-{backup,health,update}.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now danmu-backup.timer danmu-health.timer danmu-update.timer
+```
+
+更新定时器先解析新的不可变摘要，再执行“备份 → 更新 → 健康检查 → 失败恢复”；首次启用前建议先手动运行 `scripts/update.sh --check`。

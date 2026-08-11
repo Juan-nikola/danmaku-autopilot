@@ -1,0 +1,9 @@
+[Unit]
+Description=Danmaku Autopilot consistent backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/danmaku-autopilot
+ExecStart=/opt/danmaku-autopilot/scripts/backup.sh --reason daily
