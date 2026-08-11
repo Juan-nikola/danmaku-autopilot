@@ -85,6 +85,23 @@ class EngineRouter:
         if circuit.failures >= self.failure_threshold:
             circuit.opened_at = time.monotonic()
 
+    @staticmethod
+    async def _call_engine(engine: Any, request: EngineRequest) -> ResponseData:
+        """Call either an engine object or an injected async proxy function.
+
+        The latter keeps the router straightforward to unit-test with
+        ``AsyncMock`` and is also useful for lightweight adapters around
+        danmu_api that do not need a class of their own.
+        """
+
+        proxy = getattr(engine, "proxy", engine)
+        result = proxy(request)
+        if hasattr(result, "__await__"):
+            result = await result
+        if not isinstance(result, ResponseData):
+            raise TypeError("engine proxy must return ResponseData")
+        return result
+
     async def route(self, request: EngineRequest, context: Any | None = None) -> EngineDecision:
         del context
         if self._healthy("misaka"):
@@ -103,7 +120,7 @@ class EngineRouter:
         backup = self.danmu_api if backup_name == "danmu_api" else self.misaka
 
         try:
-            result = await primary.proxy(request)
+            result = await self._call_engine(primary, request)
             self._record_success(primary_name)
         except Exception:
             self._record_failure(primary_name)
@@ -118,7 +135,7 @@ class EngineRouter:
             # Probe the backup once even while its circuit is open.  A transient
             # outage should not permanently strand a recovered engine.
         try:
-            backup_result = await backup.proxy(request)
+            backup_result = await self._call_engine(backup, request)
             self._record_success(backup_name)
             if result is None or not _no_match(backup_result):
                 return backup_result.with_engine(backup_name)
