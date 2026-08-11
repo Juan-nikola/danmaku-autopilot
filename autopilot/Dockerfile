@@ -19,8 +19,8 @@ RUN mkdir -p /data /scratch \
     && chown -R 10001:10001 /data /scratch /app
 
 USER 10001:10001
-EXPOSE 8000
-CMD ["uvicorn", "danmu_autopilot.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8080
+CMD ["uvicorn", "danmu_autopilot.main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 FROM runtime AS test
 
@@ -30,4 +30,3 @@ RUN python -m pip install --no-cache-dir --no-compile '.[test]' \
     && rm -rf /root/.cache
 USER 10001:10001
 CMD ["python", "-m", "pytest", "-q"]
-

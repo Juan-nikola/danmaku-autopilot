@@ -12,6 +12,8 @@
 	 handle @blocked_control { respond "not found" 404 }
 	 @player_api path /api /api/* /match /search /comment /comments* /healthz
 	 handle @player_api { reverse_proxy autopilot:8080 }
+	 @player_token path_regexp player_token ^/[^/]+/(api|match|search|comment|comments)(/.*)?$
+	 handle @player_token { reverse_proxy autopilot:8080 }
 	 handle { respond "not found" 404 }
 }
 

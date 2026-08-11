@@ -22,13 +22,17 @@
 	}
 
 	 @player_api path /api /api/* /match /search /comment /comments* /healthz
+	 @player_token path_regexp player_token ^/[^/]+/(api|match|search|comment|comments)(/.*)?$
 	 handle @player_api {
 		 reverse_proxy 127.0.0.1:7770 {
 			 header_up X-Forwarded-Host {host}
 			 header_up X-Forwarded-Proto {scheme}
 			 header_up X-Real-IP {remote_host}
-		}
+		 }
 	}
+	 handle @player_token {
+		 reverse_proxy 127.0.0.1:7770
+	 }
 
 	 # Do not accidentally turn this host into a generic reverse proxy.
 	 handle {

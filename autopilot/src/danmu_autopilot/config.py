@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     misaka_control_key: SecretStr
     danmu_api_base_url: AnyHttpUrl = "http://danmu-api:9321"
     danmu_api_token: SecretStr
+    public_api_token: SecretStr = SecretStr("development-only")
     state_dir: Path = Path("/data")
     scratch_max_bytes: int = 500 * 1024 * 1024
 
@@ -73,7 +74,7 @@ class Settings(BaseSettings):
             raise ValueError("engine URL must point to an internal/private host")
         return value
 
-    @field_validator("misaka_control_key", "danmu_api_token")
+    @field_validator("misaka_control_key", "danmu_api_token", "public_api_token")
     @classmethod
     def _validate_secret(cls, value: SecretStr) -> SecretStr:
         if not value.get_secret_value().strip():
@@ -96,8 +97,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_distinct_credentials(self) -> Settings:
-        if self.misaka_control_key.get_secret_value() == self.danmu_api_token.get_secret_value():
-            raise ValueError("MISAKA_CONTROL_KEY and DANMU_API_TOKEN must be independent")
+        values = {
+            "MISAKA_CONTROL_KEY": self.misaka_control_key.get_secret_value(),
+            "DANMU_API_TOKEN": self.danmu_api_token.get_secret_value(),
+            "PUBLIC_API_TOKEN": self.public_api_token.get_secret_value(),
+        }
+        if len(set(values.values())) != len(values):
+            raise ValueError("engine and public API credentials must be independent")
         return self
 
     def __repr_args__(self) -> list[tuple[str, Any]]:

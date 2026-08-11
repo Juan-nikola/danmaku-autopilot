@@ -48,6 +48,8 @@ https://<DANMU_API_HOST>/api
 
 `bootstrap.sh` 会生成最多三个独立设备 Token（`DEVICE_TOKEN_1` 到 `DEVICE_TOKEN_3`）；分别填入 Forward、SenPlayer 和第三台设备。不要把 Misaka 控制密钥或 Cloudflare Token 放入播放器。
 
+设置 Caddy Basic Auth 时，请把 `caddy hash-password` 输出的 `$2a$...` 整段用单引号包住；脚本会读取 `.env`，未加引号的 `$` 会被 shell 展开。
+
 ## 健康检查与故障排查
 
 ```bash

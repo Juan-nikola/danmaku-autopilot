@@ -42,3 +42,14 @@ async def test_gateway_analysis_failure_does_not_change_response():
 def test_health_payload_does_not_include_secrets_or_urls():
     service = GatewayService(Engine(ResponseData(200, (), b"{}")), Engine(ResponseData(200, (), b"{}")))
     assert service.healthz() == {"status": "ok"}
+
+
+def test_public_token_is_checked_at_gateway_boundary():
+    service = GatewayService(
+        Engine(ResponseData(200, (), b"{}")),
+        Engine(ResponseData(200, (), b"{}")),
+        public_token="long-private-token",
+    )
+    assert not service.authorized((), "")
+    assert service.authorized((("authorization", "Bearer long-private-token"),), "")
+    assert service.authorized((), "token=long-private-token")

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import inspect
 from typing import Any, Awaitable, Callable
+from urllib.parse import parse_qs
 
 from .fallback import Engine, EngineRequest, EngineRouter, ResponseData
 
@@ -17,9 +19,29 @@ def _safe_headers(headers: Any) -> tuple[tuple[bytes, bytes], ...]:
 
 
 class GatewayService:
-    def __init__(self, misaka: Engine, danmu_api: Engine, *, enqueue_match: Callable[..., Any] | None = None) -> None:
+    def __init__(self, misaka: Engine, danmu_api: Engine, *, enqueue_match: Callable[..., Any] | None = None, public_token: str | None = None) -> None:
         self.router = EngineRouter(misaka, danmu_api)
         self.enqueue_match = enqueue_match
+        self.public_token = public_token
+
+    def authorized(self, headers: Any = (), query: str = "", path: str = "") -> bool:
+        if not self.public_token:
+            return True
+        values: dict[str, str] = {}
+        items = headers.items() if isinstance(headers, dict) else headers
+        for key, value in items:
+            values[str(key).lower()] = str(value)
+        supplied = values.get("authorization", "")
+        if supplied.lower().startswith("bearer "):
+            supplied = supplied[7:]
+        supplied = supplied or values.get("x-api-key", "")
+        supplied = supplied or parse_qs(query).get("token", [""])[0]
+        supplied = supplied or parse_qs(query).get("api_key", [""])[0]
+        if not supplied:
+            first_segment = path.strip("/").split("/", 1)[0]
+            if first_segment not in {"", "api", "healthz", "readyz"}:
+                supplied = first_segment
+        return hmac.compare_digest(supplied, self.public_token)
 
     async def handle(self, method: str, path: str, body: bytes = b"", headers: Any = (), query: str = "") -> ResponseData:
         result = await self.router.proxy(method, path, body, headers=_safe_headers(headers), query=query)
@@ -75,6 +97,8 @@ def create_app(service: GatewayService) -> Any:
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
     async def proxy(path: str, request: Request) -> Response:
+        if not service.authorized(request.headers.items(), request.url.query, "/" + path):
+            return Response(content=b'{"detail":"unauthorized"}', status_code=401, media_type="application/json")
         data = await request.body()
         result = await service.handle(request.method, "/" + path, data, request.headers.items(), request.url.query)
         return Response(content=result.body, status_code=result.status_code, headers={key.decode(): value.decode(errors="replace") for key, value in _safe_headers(result.headers)})

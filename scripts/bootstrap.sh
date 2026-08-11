@@ -123,7 +123,7 @@ fi
 # native installs and never expose credentials in the generated file itself.
 install -m 600 "$PROJECT_ROOT/config/Caddyfile.native.example" "$PROJECT_ROOT/state/caddy/Caddyfile"
 
-if ! grep -qE '^CADDY_ADMIN_HASH=.+[^_A-Z]$' "$ENV_FILE"; then
+if grep -qE "^CADDY_ADMIN_HASH=(')?(CHANGE_ME|$)" "$ENV_FILE"; then
   log "warning: set CADDY_ADMIN_HASH in .env using 'caddy hash-password' before enabling admin access"
 fi
 

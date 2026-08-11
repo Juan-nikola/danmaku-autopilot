@@ -2,7 +2,7 @@
 
 面向个人 Emby 使用场景的自托管弹幕网关设计与实现项目。
 
-> 当前状态：设计与实施计划已经完成，服务代码和部署包正在开发中，尚未提供可直接运行的正式版本。
+> 当前状态：已完成可运行的首个实现骨架（Autopilot 网关、Misaka/`danmu_api` 双引擎故障转移、SQLite 任务队列、Compose/Caddy/备份更新脚本）。首次部署前仍需在你的 VPS 上完成镜像摘要解析、域名和真实接口冒烟测试。
 
 ## 项目用途
 
@@ -54,6 +54,18 @@ Autopilot Gateway
 
 - [完整设计](docs/superpowers/specs/2026-08-11-automated-danmaku-service-design.md)
 - [实施计划](docs/superpowers/plans/2026-08-11-automated-danmaku-service.md)
+- [部署教程](docs/deployment.md)
+- [部署安全说明](docs/deployment-security.md)
+
+## 本地验证
+
+```bash
+python -m pip install -e 'autopilot[test]'
+python -m pytest autopilot/tests deploy/tests -q
+bash -n scripts/*.sh
+```
+
+首次部署使用 `config/env.example`、`scripts/bootstrap.sh --yes`；播放器只填写 Caddy 暴露的网关地址和 `PUBLIC_API_TOKEN`，不要填写 Misaka 控制密钥。
 
 ## 安全与合规
 
@@ -65,5 +77,4 @@ Autopilot Gateway
 
 ## Development status
 
-This is a personal, non-commercial, self-hosted danmaku gateway for a single user and up to three personal devices. The repository currently contains the reviewed architecture and implementation plan. Runtime code and deployment artifacts are still under development.
-
+This is a personal, non-commercial, self-hosted danmaku gateway for a single user and up to three personal devices. The first implementation is intentionally fail-open: optional analysis jobs cannot prevent ordinary player responses. Live source access, image digests, Caddy DNS and cookies must be configured by the operator.
