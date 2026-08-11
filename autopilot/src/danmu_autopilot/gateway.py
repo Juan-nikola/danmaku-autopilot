@@ -1,7 +1,5 @@
 """Public, transparent player gateway for the two danmaku engines."""
 
-from __future__ import annotations
-
 import asyncio
 import hmac
 import inspect

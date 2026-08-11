@@ -1,7 +1,8 @@
 import pytest
+import httpx
 
 from danmu_autopilot.fallback import ResponseData
-from danmu_autopilot.gateway import GatewayService
+from danmu_autopilot.gateway import GatewayService, create_app
 
 
 class Engine:
@@ -53,3 +54,22 @@ def test_public_token_is_checked_at_gateway_boundary():
     assert not service.authorized((), "")
     assert service.authorized((("authorization", "Bearer long-private-token"),), "")
     assert service.authorized((), "token=long-private-token")
+
+
+@pytest.mark.asyncio
+async def test_fastapi_surface_passes_request_to_gateway_and_enforces_token():
+    service = GatewayService(
+        Engine(ResponseData(200, ((b"content-type", b"application/json"),), b"{}")),
+        Engine(ResponseData(200, (), b"{}")),
+        public_token="long-private-token",
+    )
+    app = create_app(service)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        health = await client.get("/healthz")
+        invalid = await client.get("/api/v2/match?token=invalid")
+        valid = await client.get("/api/v2/match?token=long-private-token")
+
+    assert health.status_code == 200
+    assert invalid.status_code == 401
+    assert valid.status_code == 200
