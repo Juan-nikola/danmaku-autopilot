@@ -1,0 +1,61 @@
+{
+	 email {$ACME_EMAIL}
+	 # Keep the Caddy admin API off the public interface.
+	 admin off
+	 servers {
+		 trusted_proxies static private_ranges
+	 }
+}
+
+# Public player endpoint. Only the Dandan-compatible player paths are routed.
+{$DANMU_API_HOST} {
+	 encode gzip zstd
+	 header {
+		 X-Content-Type-Options nosniff
+		 Referrer-Policy no-referrer
+		 -Server
+	}
+
+	 @blocked_control path /api/control* /api/docs* /api/openapi.json /docs* /redoc* /admin*
+	 handle @blocked_control {
+		 respond "not found" 404
+	}
+
+	 @player_api path /api /api/* /match /search /comment /comments* /healthz
+	 handle @player_api {
+		 reverse_proxy 127.0.0.1:7770 {
+			 header_up X-Forwarded-Host {host}
+			 header_up X-Forwarded-Proto {scheme}
+			 header_up X-Real-IP {remote_host}
+		}
+	}
+
+	 # Do not accidentally turn this host into a generic reverse proxy.
+	 handle {
+		 respond "not found" 404
+	}
+	 log {
+		 output discard
+	}
+}
+
+# Misaka's administration UI is separate and protected by Caddy Basic Auth.
+{$DANMU_ADMIN_HOST} {
+	 encode gzip zstd
+	 basic_auth {
+		 {$CADDY_ADMIN_USER} {$CADDY_ADMIN_HASH}
+	}
+	 header {
+		 X-Content-Type-Options nosniff
+		 Referrer-Policy no-referrer
+		 -Server
+	}
+	 reverse_proxy 127.0.0.1:7768 {
+		 header_up X-Forwarded-Host {host}
+		 header_up X-Forwarded-Proto {scheme}
+		 header_up X-Real-IP {remote_host}
+	}
+	 log {
+		 output discard
+	}
+}
