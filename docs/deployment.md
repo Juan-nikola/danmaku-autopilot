@@ -49,13 +49,13 @@ sbd-danmu-admin  A        65.75.209.243
 
 没有已确认的 IPv6 时不要添加 AAAA。Cloudflare 建议使用 **Full (strict)**；DNS 生效后 Caddy 才能为两个域名完成公网证书申请。
 
-播放器只填写：
+当前网关播放器鉴权使用同一个 `PUBLIC_API_TOKEN`；三台个人设备可以使用同一个 URL。`DEVICE_TOKEN_1` 到 `DEVICE_TOKEN_3` 是后续细分设备权限的预留字段，当前不要拿它们替换公共 Token。播放器只填写：
 
 ```text
 https://<DANMU_API_HOST>/api
 ```
 
-`bootstrap.sh` 会生成最多三个独立设备 Token（`DEVICE_TOKEN_1` 到 `DEVICE_TOKEN_3`）；分别填入 Forward、SenPlayer 和第三台设备。不要把 Misaka 控制密钥或 Cloudflare Token 放入播放器。
+`PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 Misaka 控制密钥、备用引擎 Token、Cookie 或 Cloudflare Token 放入播放器。
 
 设置 Caddy Basic Auth 时，请把 `caddy hash-password` 输出的 `$2a$...` 整段用单引号包住；脚本会读取 `.env`，未加引号的 `$` 会被 shell 展开。
 
