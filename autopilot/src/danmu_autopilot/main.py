@@ -25,7 +25,10 @@ class HttpEngine:
     def __init__(self, base_url: str, token: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
-        self.client = httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0), follow_redirects=False)
+        # A cold multi-source search can take longer than a normal comment
+        # request.  The gateway coalesces duplicate searches, so allowing the
+        # first one to finish avoids returning Misaka's empty placeholder.
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=False)
 
     async def proxy(self, request: EngineRequest) -> ResponseData:
         # Player requests are authenticated at the public gateway.  Never pass

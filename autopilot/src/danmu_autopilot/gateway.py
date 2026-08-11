@@ -21,6 +21,7 @@ class GatewayService:
         self.router = EngineRouter(misaka, danmu_api)
         self.enqueue_match = enqueue_match
         self.public_token = public_token
+        self._inflight_searches: dict[tuple[str, str, str], asyncio.Task[ResponseData]] = {}
 
     def authorized(self, headers: Any = (), query: str = "", path: str = "") -> bool:
         if not self.public_token:
@@ -53,7 +54,28 @@ class GatewayService:
 
     async def handle(self, method: str, path: str, body: bytes = b"", headers: Any = (), query: str = "") -> ResponseData:
         forward_path = self._strip_path_token(path)
-        result = await self.router.proxy(method, forward_path, body, headers=_safe_headers(headers), query=query)
+        safe_headers = _safe_headers(headers)
+        # Forward may issue several identical cold searches while it is opening
+        # the search screen.  Let one request populate danmu-api's cache and
+        # share that result with the other callers instead of racing the source
+        # fan-out and returning an early empty response.
+        search_key = (method.upper(), forward_path, query)
+        if method.upper() == "GET" and forward_path in {"/api/v2/search/anime", "/api/v2/search/episodes"}:
+            task = self._inflight_searches.get(search_key)
+            if task is None:
+                task = asyncio.create_task(
+                    self.router.proxy(method, forward_path, body, headers=safe_headers, query=query)
+                )
+                self._inflight_searches[search_key] = task
+                try:
+                    result = await asyncio.shield(task)
+                finally:
+                    if self._inflight_searches.get(search_key) is task:
+                        self._inflight_searches.pop(search_key, None)
+            else:
+                result = await asyncio.shield(task)
+        else:
+            result = await self.router.proxy(method, forward_path, body, headers=safe_headers, query=query)
         if self.enqueue_match is not None and method.upper() in {"POST", "PUT"} and "/match" in path:
             try:
                 scheduled = self.enqueue_match(EngineRequest(method, forward_path, body, _safe_headers(headers), query), result)

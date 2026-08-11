@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 import httpx
 
@@ -12,6 +14,17 @@ class Engine:
 
     async def proxy(self, request):
         self.calls.append(request)
+        return self.response
+
+
+class DelayedEngine(Engine):
+    def __init__(self, response, delay=0.01):
+        super().__init__(response)
+        self.delay = delay
+
+    async def proxy(self, request):
+        self.calls.append(request)
+        await asyncio.sleep(self.delay)
         return self.response
 
 
@@ -49,6 +62,22 @@ async def test_path_token_is_removed_before_forwarding_to_engines():
     await service.handle("GET", "/long-private-token/api/v2/search/anime", b"", {})
 
     assert misaka.calls[0].path == "/api/v2/search/anime"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_identical_searches_share_one_cold_request():
+    misaka = DelayedEngine(ResponseData(200, (), b'{"animes":[]}'))
+    backup = DelayedEngine(ResponseData(200, (), b'{"success":true,"animes":[{"animeId":1}]}'))
+    service = GatewayService(misaka, backup)
+
+    results = await asyncio.gather(
+        service.handle("GET", "/api/v2/search/anime", query="keyword=Show"),
+        service.handle("GET", "/api/v2/search/anime", query="keyword=Show"),
+    )
+
+    assert [result.body for result in results] == [backup.response.body, backup.response.body]
+    assert len(misaka.calls) == 1
+    assert len(backup.calls) == 1
 
 
 def test_health_payload_does_not_include_secrets_or_urls():
