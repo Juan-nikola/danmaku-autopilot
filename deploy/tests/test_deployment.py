@@ -40,6 +40,12 @@ class ComposePolicyTests(unittest.TestCase):
     def test_no_container_mounts_docker_socket(self) -> None:
         self.assertNotIn("/var/run/docker.sock", self.compose)
 
+    def test_misaka_has_only_the_capability_needed_by_its_entrypoint(self) -> None:
+        service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
+        self.assertIsNotNone(service)
+        self.assertIn("cap_drop:", service.group(1))
+        self.assertRegex(service.group(1), r"(?m)^\s+- CHOWN$")
+
 
 class CaddyPolicyTests(unittest.TestCase):
     @classmethod

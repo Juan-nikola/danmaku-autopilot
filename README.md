@@ -95,7 +95,7 @@ nano .env                         # 至少修改域名、邮箱和 Caddy 管理�
 scripts/bootstrap.sh --yes
 ```
 
-你的 VPS 已经由 1Panel Caddy 占用 80/443，因此不要再启动第二个 Caddy 容器。初始化后，在 1Panel 的 Caddy/反向代理中新增一个播放器域名，例如 `danmu.example.com`，反向代理到：
+你的 VPS 已经由 1Panel Caddy 占用 80/443，因此不要再启动第二个 Caddy 容器。初始化后，在 1Panel 的 Caddy/反向代理中新增播放器域名 `sbd-danmu.sunyz.uk`，反向代理到：
 
 ```text
 http://127.0.0.1:7770
@@ -114,7 +114,7 @@ ssh -L 7768:127.0.0.1:7768 sbdvps
 播放器只配置网关地址，不配置 Misaka 地址：
 
 ```text
-https://danmu.example.com/api?token=你的PUBLIC_API_TOKEN
+https://sbd-danmu.sunyz.uk/api?token=你的PUBLIC_API_TOKEN
 ```
 
 `PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 `MISAKA_CONTROL_KEY`、`DANMU_API_TOKEN` 或 B 站 Cookie 填入播放器。也可以把 Token 放在 `Authorization: Bearer ...` 或 `X-API-Key` 请求头中。
