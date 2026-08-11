@@ -61,6 +61,12 @@ class ComposePolicyTests(unittest.TestCase):
         ):
             self.assertRegex(service.group(1), rf"(?m)^\s+{variable}:\s*{re.escape(value)}$")
 
+    def test_misaka_healthcheck_does_not_require_wget(self) -> None:
+        service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
+        self.assertIsNotNone(service)
+        self.assertNotIn("wget", service.group(1))
+        self.assertIn("urllib.request", service.group(1))
+
 
 class CaddyPolicyTests(unittest.TestCase):
     @classmethod
