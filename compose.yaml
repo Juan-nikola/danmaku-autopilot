@@ -2,7 +2,7 @@ name: danmu-autopilot
 
 services:
   mysql:
-    image: mysql:8.1.0-oracle
+    image: ${MYSQL_IMAGE:?MYSQL_IMAGE is required; run scripts/bootstrap.sh}
     restart: unless-stopped
     command:
       - --character-set-server=utf8mb4
@@ -38,7 +38,7 @@ services:
         max-file: "5"
 
   misaka:
-    image: ${MISAKA_IMAGE:-l429609201/misaka_danmu_server:latest}
+    image: ${MISAKA_IMAGE:?MISAKA_IMAGE is required; run scripts/bootstrap.sh}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${MISAKA_BIND_PORT:-7768}:7768"
@@ -80,7 +80,7 @@ services:
         max-file: "5"
 
   danmu-api:
-    image: ${DANMU_API_IMAGE:-logvar/danmu-api:latest}
+    image: ${DANMU_API_IMAGE:?DANMU_API_IMAGE is required; run scripts/bootstrap.sh}
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Asia/Shanghai}

@@ -90,8 +90,13 @@ if [[ ! -e "$PROJECT_ROOT/deploy/images.lock" ]]; then
 fi
 if (( ! dry_run )) && [[ -x "$PROJECT_ROOT/scripts/resolve-images.sh" ]]; then
   "$PROJECT_ROOT/scripts/resolve-images.sh" --lock "$PROJECT_ROOT/deploy/images.lock"
-  set_env MISAKA_IMAGE "$(awk -F= '$1 == "MISAKA_IMAGE" {print substr($0, index($0, "=") + 1); exit}' "$PROJECT_ROOT/deploy/images.lock")"
-  set_env DANMU_API_IMAGE "$(awk -F= '$1 == "DANMU_API_IMAGE" {print substr($0, index($0, "=") + 1); exit}' "$PROJECT_ROOT/deploy/images.lock")"
+fi
+
+if (( ! dry_run )); then
+  sync_image_env
+  set_env MISAKA_IMAGE "$MISAKA_IMAGE"
+  set_env DANMU_API_IMAGE "$DANMU_API_IMAGE"
+  set_env MYSQL_IMAGE "$MYSQL_IMAGE"
 fi
 
 # Caddy reads {$VAR} from its process environment. Keep a generated copy for
@@ -111,6 +116,7 @@ grep -Eq '^MISAKA_IMAGE=.*@sha256:[0-9a-fA-F]{64}$' "$ENV_FILE" || die "MISAKA_I
 grep -Eq '^DANMU_API_IMAGE=.*@sha256:[0-9a-fA-F]{64}$' "$ENV_FILE" || die "DANMU_API_IMAGE must be digest-pinned"
 
 require_cmd docker
+sync_image_env
 docker compose --project-directory "$PROJECT_ROOT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --project-directory "$PROJECT_ROOT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
 

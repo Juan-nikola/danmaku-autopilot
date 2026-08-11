@@ -29,7 +29,19 @@ load_env() {
 
 compose() {
   require_cmd docker
+  sync_image_env
   docker compose --project-directory "$PROJECT_ROOT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+sync_image_env() {
+  local lock="${PROJECT_ROOT}/deploy/images.lock"
+  [[ -f "$lock" ]] || die "missing ${lock}; run scripts/bootstrap.sh first"
+  export MISAKA_IMAGE="$(awk -F= '$1 == "MISAKA_IMAGE" {print substr($0, index($0, "=") + 1); exit}' "$lock")"
+  export DANMU_API_IMAGE="$(awk -F= '$1 == "DANMU_API_IMAGE" {print substr($0, index($0, "=") + 1); exit}' "$lock")"
+  export MYSQL_IMAGE="$(awk -F= '$1 == "MYSQL_IMAGE" {print substr($0, index($0, "=") + 1); exit}' "$lock")"
+  [[ "$MISAKA_IMAGE" =~ @sha256:[0-9a-fA-F]{64}$ ]] || die "MISAKA_IMAGE is not digest-pinned"
+  [[ "$DANMU_API_IMAGE" =~ @sha256:[0-9a-fA-F]{64}$ ]] || die "DANMU_API_IMAGE is not digest-pinned"
+  [[ "$MYSQL_IMAGE" == mysql:8.1.0-oracle ]] || die "MYSQL_IMAGE must remain mysql:8.1.0-oracle"
 }
 
 ensure_dir() {

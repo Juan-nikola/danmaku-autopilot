@@ -29,7 +29,11 @@ require_cmd docker
 docker_ok=1
 if ! docker info >/dev/null 2>&1; then docker_ok=0; fi
 compose_ok=1
-if ! docker compose --project-directory "$PROJECT_ROOT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet >/dev/null 2>&1; then compose_ok=0; fi
+if ! sync_image_env >/dev/null 2>&1; then
+  compose_ok=0
+elif ! docker compose --project-directory "$PROJECT_ROOT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet >/dev/null 2>&1; then
+  compose_ok=0
+fi
 
 dns_api="unknown"
 dns_admin="unknown"
