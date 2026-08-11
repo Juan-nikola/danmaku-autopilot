@@ -141,12 +141,19 @@ class MisakaClient:
         path: str,
         *,
         control: bool = False,
+        headers: Any = (),
         body: bytes | None = None,
         json_body: Any | None = None,
         retries: int = 0,
     ) -> ResponseData:
         url = self._url(path, control=control)
         kwargs: dict[str, Any] = {"headers": {"accept": "application/json, application/xml"}}
+        hop_by_hop = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"}
+        source_headers = headers.items() if isinstance(headers, dict) else headers
+        for key, value in source_headers or ():
+            key_text = key.decode(errors="ignore") if isinstance(key, bytes) else str(key)
+            if key_text.lower() not in hop_by_hop:
+                kwargs["headers"][key_text] = value.decode(errors="ignore") if isinstance(value, bytes) else str(value)
         if body is not None:
             kwargs["content"] = body
             kwargs["headers"]["content-type"] = "application/xml; charset=utf-8"
@@ -190,6 +197,7 @@ class MisakaClient:
             request.method.upper(),
             path + (("?" + request.query) if request.query else ""),
             control=control,
+            headers=request.headers,
             body=request.body,
             retries=2 if request.method.upper() in {"GET", "HEAD", "OPTIONS"} else 0,
         )
