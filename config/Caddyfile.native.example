@@ -17,7 +17,11 @@
 	}
 
 	 @blocked_control path /api/control* /api/docs* /api/openapi.json /docs* /redoc* /admin*
+	 @blocked_token_control path_regexp blocked_token_control ^/[^/]+/api/(control|docs|openapi\.json)(/.*)?$
 	 handle @blocked_control {
+		 respond "not found" 404
+	}
+	 handle @blocked_token_control {
 		 respond "not found" 404
 	}
 

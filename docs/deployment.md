@@ -54,10 +54,11 @@ sbd-danmu-admin  A        65.75.209.243
 当前网关播放器鉴权使用同一个 `PUBLIC_API_TOKEN`；三台个人设备可以使用同一个 URL。`DEVICE_TOKEN_1` 到 `DEVICE_TOKEN_3` 是后续细分设备权限的预留字段，当前不要拿它们替换公共 Token。播放器只填写：
 
 ```text
-https://<DANMU_API_HOST>/api
+https://<DANMU_API_HOST>/<PUBLIC_API_TOKEN>
 ```
 
 `PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 Misaka 控制密钥、备用引擎 Token、Cookie 或 Cloudflare Token 放入播放器。
+如果播放器要求版本路径，可填写 `https://<DANMU_API_HOST>/<PUBLIC_API_TOKEN>/api/v2`；网关也兼容 `https://<DANMU_API_HOST>/api?token=<PUBLIC_API_TOKEN>`。
 
 如果 Dallas 出口仍无法访问某些国内源，Snell“节点服务端”本身不会自动让 Docker 使用代理；必须在 VPS 上另行运行 Snell 客户端，并提供本地 HTTP/SOCKS 监听端口，再把该端口接入来源请求。没有本地监听端口时，不要把 Snell 的服务端端口直接填到这里。
 

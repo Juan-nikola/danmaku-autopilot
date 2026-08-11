@@ -130,10 +130,11 @@ sbd-danmu-admin  A        65.75.209.243
 播放器只配置网关地址，不配置 Misaka 地址：
 
 ```text
-https://sbd-danmu.sunyz.uk/api?token=你的PUBLIC_API_TOKEN
+https://sbd-danmu.sunyz.uk/你的PUBLIC_API_TOKEN
 ```
 
 `PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 `MISAKA_CONTROL_KEY`、`DANMU_API_TOKEN` 或 B 站 Cookie 填入播放器。也可以把 Token 放在 `Authorization: Bearer ...` 或 `X-API-Key` 请求头中。
+如果播放器要求把 API 版本写在地址中，也支持 `https://sbd-danmu.sunyz.uk/你的PUBLIC_API_TOKEN/api/v2`；查询参数形式 `https://sbd-danmu.sunyz.uk/api?token=你的PUBLIC_API_TOKEN` 同样兼容。
 
 ### 日常维护
 

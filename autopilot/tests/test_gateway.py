@@ -40,6 +40,17 @@ async def test_gateway_analysis_failure_does_not_change_response():
     assert result.body == b'{"isMatched":true}'
 
 
+@pytest.mark.asyncio
+async def test_path_token_is_removed_before_forwarding_to_engines():
+    misaka = Engine(ResponseData(200, (), b'{"isMatched":true,"matches":[{"episodeId":1}]}'))
+    backup = Engine(ResponseData(200, (), b'{"isMatched":false}'))
+    service = GatewayService(misaka, backup, public_token="long-private-token")
+
+    await service.handle("GET", "/long-private-token/api/v2/search/anime", b"", {})
+
+    assert misaka.calls[0].path == "/api/v2/search/anime"
+
+
 def test_health_payload_does_not_include_secrets_or_urls():
     service = GatewayService(Engine(ResponseData(200, (), b"{}")), Engine(ResponseData(200, (), b"{}")))
     assert service.healthz() == {"status": "ok"}

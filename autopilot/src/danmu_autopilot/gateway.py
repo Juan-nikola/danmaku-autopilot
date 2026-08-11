@@ -41,11 +41,22 @@ class GatewayService:
                 supplied = first_segment
         return hmac.compare_digest(supplied, self.public_token)
 
+    def _strip_path_token(self, path: str) -> str:
+        """Accept the common ``/<token>/api/v2`` player URL form safely."""
+
+        if not self.public_token:
+            return path
+        first, separator, remainder = path.lstrip("/").partition("/")
+        if hmac.compare_digest(first, self.public_token):
+            return "/" + remainder if separator else "/"
+        return path
+
     async def handle(self, method: str, path: str, body: bytes = b"", headers: Any = (), query: str = "") -> ResponseData:
-        result = await self.router.proxy(method, path, body, headers=_safe_headers(headers), query=query)
+        forward_path = self._strip_path_token(path)
+        result = await self.router.proxy(method, forward_path, body, headers=_safe_headers(headers), query=query)
         if self.enqueue_match is not None and method.upper() in {"POST", "PUT"} and "/match" in path:
             try:
-                scheduled = self.enqueue_match(EngineRequest(method, path, body, _safe_headers(headers), query), result)
+                scheduled = self.enqueue_match(EngineRequest(method, forward_path, body, _safe_headers(headers), query), result)
                 if inspect.isawaitable(scheduled):
                     asyncio.create_task(self._swallow(scheduled))
             except Exception:
