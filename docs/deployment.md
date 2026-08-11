@@ -23,7 +23,7 @@ scripts/bootstrap.sh --rotate PUBLIC_API_TOKEN --yes
 
 ## Caddy 与 Cloudflare
 
-现有宿主机 Caddy 使用 `config/Caddyfile.native.example`，把它复制到 Caddy 的配置目录，确认 `.env` 已被 Caddy 进程以环境变量方式读取，然后执行 `caddy validate` 和 reload：
+现有宿主机 Caddy 使用 `config/Caddyfile.native.example`。如果沿用本项目的现成 VPS，部署脚本之外的 Caddy 路由已经写入 1Panel Caddy 配置并完成 `validate`/reload；配置备份位于同目录的 `Caddyfile.bak.<时间戳>`。如果是另一台机器，把模板复制到 Caddy 配置目录，确认 `.env` 已被 Caddy 进程以环境变量方式读取，然后执行 `caddy validate` 和 reload：
 
 ```bash
 cp state/caddy/Caddyfile /etc/caddy/danmu.Caddyfile
@@ -39,6 +39,15 @@ scripts/cloudflare-dns.sh --apply
 ```
 
 脚本只处理 `DANMU_API_HOST` 和 `DANMU_ADMIN_HOST` 两个精确主机名，不会改动同一区域的其他记录。
+
+本次 VPS 使用以下记录，IPv4 都是 `65.75.209.243`：
+
+```text
+sbd-danmu        A        65.75.209.243
+sbd-danmu-admin  A        65.75.209.243
+```
+
+没有已确认的 IPv6 时不要添加 AAAA。Cloudflare 建议使用 **Full (strict)**；DNS 生效后 Caddy 才能为两个域名完成公网证书申请。
 
 播放器只填写：
 

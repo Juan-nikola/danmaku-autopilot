@@ -2,7 +2,7 @@
 
 面向个人 Emby 使用场景的自托管弹幕网关设计与实现项目。
 
-> 当前状态：已完成可运行的首个实现骨架（Autopilot 网关、Misaka/`danmu_api` 双引擎故障转移、SQLite 任务队列、Compose/Caddy/备份更新脚本）。首次部署前仍需在你的 VPS 上完成镜像摘要解析、域名和真实接口冒烟测试。
+> 当前状态：首个可运行版本已部署到你的 VPS。四个容器（MySQL、Misaka、`danmu_api`、Autopilot）已通过健康检查；公网 HTTPS 证书会在 Cloudflare DNS 指向 VPS 后由现有 Caddy 自动申请。
 
 ## 项目用途
 
@@ -95,19 +95,35 @@ nano .env                         # 至少修改域名、邮箱和 Caddy 管理�
 scripts/bootstrap.sh --yes
 ```
 
-你的 VPS 已经由 1Panel Caddy 占用 80/443，因此不要再启动第二个 Caddy 容器。初始化后，在 1Panel 的 Caddy/反向代理中新增播放器域名 `sbd-danmu.sunyz.uk`，反向代理到：
+你的 VPS 已经由 1Panel Caddy 占用 80/443，因此不要再启动第二个 Caddy 容器。本次部署已经备份并加载了两个路由：
+
+- `sbd-danmu.sunyz.uk`：播放器 API，反代到 `127.0.0.1:7770`，只允许播放器路径；
+- `sbd-danmu-admin.sunyz.uk`：Misaka 管理页面，反代到 `127.0.0.1:7768`，额外要求 Caddy Basic Auth。
+
+如果你在另一台机器重复部署，可在 1Panel 的 Caddy/反向代理中新增播放器域名，反向代理到：
 
 ```text
 http://127.0.0.1:7770
 ```
 
-由 1Panel Caddy 负责 HTTPS。不要把 `7768`、MySQL、`danmu-api` 或 Misaka 控制 API 代理到公网。Misaka 管理页面可以只通过 SSH 隧道访问：
+由 1Panel Caddy 负责 HTTPS。不要把 `7768`、MySQL、`danmu-api` 或 Misaka 控制 API 直接暴露为端口。Misaka 管理页面也可以只通过 SSH 隧道访问：
 
 ```bash
 ssh -L 7768:127.0.0.1:7768 sbdvps
 ```
 
 然后在 Mac 浏览器打开 `http://127.0.0.1:7768`。
+
+### Cloudflare 必填记录
+
+在 `sunyz.uk` Zone 添加两条 `A` 记录，IPv4 都填 `65.75.209.243`：
+
+```text
+sbd-danmu        A        65.75.209.243
+sbd-danmu-admin  A        65.75.209.243
+```
+
+先不要添加未知的 AAAA 记录。建议 Cloudflare SSL/TLS 设为 **Full (strict)**；Caddy 校验通过后会自动申请证书。DNS 生效前，HTTPS 测试出现 TLS 错误是正常的。
 
 ### Forward / SenPlayer 设置
 
