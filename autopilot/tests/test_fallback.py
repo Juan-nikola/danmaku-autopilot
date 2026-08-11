@@ -43,6 +43,18 @@ async def test_unhealthy_backup_never_delays_primary():
 
 
 @pytest.mark.asyncio
+async def test_true_match_without_top_level_anime_id_does_not_fail_over():
+    primary = FakeEngine(ResponseData(200, (), b'{"isMatched":true,"matches":[{"episodeId":1}]}'))
+    backup = FakeEngine(error=AssertionError("backup should not be called"))
+    router = EngineRouter(primary, backup)
+
+    result = await router.proxy("POST", "/api/v2/match", b"{}", headers={})
+
+    assert result.engine == "misaka"
+    assert backup.calls == []
+
+
+@pytest.mark.asyncio
 async def test_transport_failure_falls_back_without_changing_backup_bytes():
     primary = FakeEngine(error=OSError("down"))
     backup = FakeEngine(ResponseData(201, ((b"x-test", b"ok"),), b"<i>ok</i>"))

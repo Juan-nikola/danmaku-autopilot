@@ -60,8 +60,12 @@ def _no_match(response: ResponseData) -> bool:
         for key in ("isMatched", "matched", "is_matched"):
             if key in payload and payload[key] is False:
                 return True
-        if payload.get("animeId") in (None, 0, "") and any(key in payload for key in ("isMatched", "matched")):
-            return True
+        # DanDanPlay-compatible match responses put the selected anime in the
+        # first item of ``matches``; they do not need a top-level ``animeId``.
+        # Only an explicitly empty result should trigger fail-over.
+        for key in ("matches", "animes", "episodes"):
+            if key in payload and isinstance(payload[key], list) and not payload[key]:
+                return True
     return False
 
 
