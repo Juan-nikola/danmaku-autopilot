@@ -67,6 +67,12 @@ class ComposePolicyTests(unittest.TestCase):
         self.assertNotIn("wget", service.group(1))
         self.assertIn("urllib.request", service.group(1))
 
+    def test_misaka_uses_egress_network_for_sources_and_loopback_proxy(self) -> None:
+        service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
+        self.assertIsNotNone(service)
+        self.assertRegex(service.group(1), r"(?m)^\s+- danmu-internal\s*$")
+        self.assertRegex(service.group(1), r"(?m)^\s+- danmu-egress\s*$")
+
 
 class CaddyPolicyTests(unittest.TestCase):
     @classmethod

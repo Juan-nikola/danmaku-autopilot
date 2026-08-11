@@ -57,6 +57,7 @@ services:
       - misaka-cache:/app/cache
     networks:
       - danmu-internal
+      - danmu-egress
     depends_on:
       mysql:
         condition: service_healthy
