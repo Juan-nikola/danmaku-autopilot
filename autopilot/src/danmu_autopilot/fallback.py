@@ -63,7 +63,7 @@ def _no_match(response: ResponseData) -> bool:
         # DanDanPlay-compatible match responses put the selected anime in the
         # first item of ``matches``; they do not need a top-level ``animeId``.
         # Only an explicitly empty result should trigger fail-over.
-        for key in ("matches", "animes", "episodes"):
+        for key in ("matches", "animes", "episodes", "comments", "danmaku"):
             if key in payload and isinstance(payload[key], list) and not payload[key]:
                 return True
     return False

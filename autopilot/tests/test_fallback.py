@@ -55,6 +55,18 @@ async def test_true_match_without_top_level_anime_id_does_not_fail_over():
 
 
 @pytest.mark.asyncio
+async def test_empty_comments_use_backup_engine():
+    primary = FakeEngine(ResponseData(200, (), b'{"count":0,"comments":[]}'))
+    backup = FakeEngine(ResponseData(200, (), b'{"count":1,"comments":[{"m":"ok"}]}'))
+    router = EngineRouter(primary, backup)
+
+    result = await router.proxy("GET", "/api/v2/comment/1", b"", headers={})
+
+    assert result.engine == "danmu_api"
+    assert result.body == b'{"count":1,"comments":[{"m":"ok"}]}'
+
+
+@pytest.mark.asyncio
 async def test_transport_failure_falls_back_without_changing_backup_bytes():
     primary = FakeEngine(error=OSError("down"))
     backup = FakeEngine(ResponseData(201, ((b"x-test", b"ok"),), b"<i>ok</i>"))
