@@ -44,12 +44,14 @@ services:
       - "127.0.0.1:${MISAKA_BIND_PORT:-7768}:7768"
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-misaka}
-      MYSQL_USER: ${MYSQL_USER:-misaka}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
-      MISAKA_CONTROL_KEY: ${MISAKA_CONTROL_KEY:?MISAKA_CONTROL_KEY is required}
+      DANMUAPI_SERVER__HOST: 0.0.0.0
+      DANMUAPI_SERVER__PORT: "7768"
+      DANMUAPI_DATABASE__HOST: mysql
+      DANMUAPI_DATABASE__PORT: "3306"
+      DANMUAPI_DATABASE__NAME: ${MYSQL_DATABASE:-misaka}
+      DANMUAPI_DATABASE__USER: ${MYSQL_USER:-misaka}
+      DANMUAPI_DATABASE__PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      DANMUAPI_ADMIN__INITIAL_USER: ${MISAKA_INITIAL_USER:-admin}
     volumes:
       - misaka-config:/app/config
       - misaka-cache:/app/cache

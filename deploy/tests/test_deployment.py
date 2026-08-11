@@ -47,6 +47,20 @@ class ComposePolicyTests(unittest.TestCase):
         for capability in ("CHOWN", "SETGID", "SETUID"):
             self.assertRegex(service.group(1), rf"(?m)^\s+- {capability}$")
 
+    def test_misaka_uses_official_database_environment_names(self) -> None:
+        service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
+        self.assertIsNotNone(service)
+        for variable, value in (
+            ("DANMUAPI_SERVER__HOST", "0.0.0.0"),
+            ("DANMUAPI_SERVER__PORT", '"7768"'),
+            ("DANMUAPI_DATABASE__HOST", "mysql"),
+            ("DANMUAPI_DATABASE__PORT", '"3306"'),
+            ("DANMUAPI_DATABASE__USER", "${MYSQL_USER:-misaka}"),
+            ("DANMUAPI_DATABASE__PASSWORD", "${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}"),
+            ("DANMUAPI_DATABASE__NAME", "${MYSQL_DATABASE:-misaka}"),
+        ):
+            self.assertRegex(service.group(1), rf"(?m)^\s+{variable}:\s*{re.escape(value)}$")
+
 
 class CaddyPolicyTests(unittest.TestCase):
     @classmethod
