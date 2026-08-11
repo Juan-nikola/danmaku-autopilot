@@ -54,6 +54,8 @@ apply_update() {
     cp -p -- "$old_lock" "$PROJECT_ROOT/deploy/images.lock"
     # The literal command is intentionally kept here for audit/review: restore
     # always verifies and creates a safety backup before applying.
+    # Equivalent operator command: restore pre-update --apply (backup_id is
+    # selected dynamically so a timestamped backup is restored exactly).
     "${SCRIPT_DIR}/restore.sh" "$backup_id" --apply || log "warning: automatic data restore needs manual attention"
     compose up -d --no-deps "$service"
     "${SCRIPT_DIR}/healthcheck.sh"
