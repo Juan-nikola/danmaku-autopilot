@@ -53,6 +53,7 @@ class Settings(BaseSettings):
 
     misaka_base_url: AnyHttpUrl = "http://misaka:7768"
     misaka_control_key: SecretStr
+    misaka_player_token: SecretStr
     danmu_api_base_url: AnyHttpUrl = "http://danmu-api:9321"
     danmu_api_token: SecretStr
     public_api_token: SecretStr = SecretStr("development-only")
@@ -74,7 +75,7 @@ class Settings(BaseSettings):
             raise ValueError("engine URL must point to an internal/private host")
         return value
 
-    @field_validator("misaka_control_key", "danmu_api_token", "public_api_token")
+    @field_validator("misaka_control_key", "misaka_player_token", "danmu_api_token", "public_api_token")
     @classmethod
     def _validate_secret(cls, value: SecretStr) -> SecretStr:
         if not value.get_secret_value().strip():
@@ -99,6 +100,7 @@ class Settings(BaseSettings):
     def _validate_distinct_credentials(self) -> Settings:
         values = {
             "MISAKA_CONTROL_KEY": self.misaka_control_key.get_secret_value(),
+            "MISAKA_PLAYER_TOKEN": self.misaka_player_token.get_secret_value(),
             "DANMU_API_TOKEN": self.danmu_api_token.get_secret_value(),
             "PUBLIC_API_TOKEN": self.public_api_token.get_secret_value(),
         }
@@ -112,6 +114,7 @@ class Settings(BaseSettings):
         return [
             ("misaka_base_url", str(self.misaka_base_url)),
             ("misaka_control_key", "[REDACTED]"),
+            ("misaka_player_token", "[REDACTED]"),
             ("danmu_api_base_url", str(self.danmu_api_base_url)),
             ("danmu_api_token", "[REDACTED]"),
             ("state_dir", self.state_dir),

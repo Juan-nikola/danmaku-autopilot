@@ -92,6 +92,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       DANMU_API_TOKEN: ${DANMU_API_TOKEN:?DANMU_API_TOKEN is required}
+      TOKEN: ${DANMU_API_TOKEN:?DANMU_API_TOKEN is required}
       PORT: "9321"
     volumes:
       - danmu-api-cache:/app/.cache
@@ -131,6 +132,7 @@ services:
       TZ: ${TZ:-Asia/Shanghai}
       MISAKA_BASE_URL: http://misaka:7768
       MISAKA_CONTROL_KEY: ${MISAKA_CONTROL_KEY:?MISAKA_CONTROL_KEY is required}
+      MISAKA_PLAYER_TOKEN: ${MISAKA_PLAYER_TOKEN:?MISAKA_PLAYER_TOKEN is required}
       DANMU_API_BASE_URL: http://danmu-api:9321
       DANMU_API_TOKEN: ${DANMU_API_TOKEN:?DANMU_API_TOKEN is required}
       PUBLIC_API_TOKEN: ${PUBLIC_API_TOKEN:?PUBLIC_API_TOKEN is required}

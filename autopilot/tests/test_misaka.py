@@ -63,3 +63,28 @@ async def test_read_requests_retry_three_times_but_writes_do_not_retry():
     with pytest.raises(Exception):
         await client.import_xml(XmlImport(episode_id=1, xml="<i/>"))
     assert len(http.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_public_v2_player_path_maps_to_misaka_v1_and_preserves_json_content_type():
+    http = FakeHttp()
+    client = MisakaClient(
+        base_url="http://misaka:7768",
+        player_token="internal-player-token",
+        http_client=http,
+    )
+
+    await client.proxy(
+        type("Request", (), {
+            "method": "POST",
+            "path": "/api/v2/match",
+            "query": "token=public-token",
+            "body": b'{"fileName":"Show.S01E01.mkv"}',
+            "headers": ((b"content-type", b"application/json"),),
+        })()
+    )
+
+    method, url, kwargs = http.calls[0]
+    assert method == "POST"
+    assert "/api/v1/internal-player-token/match?token=public-token" in url
+    assert kwargs["headers"]["content-type"] == "application/json"

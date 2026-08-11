@@ -7,6 +7,7 @@ import hashlib
 import asyncio
 import json
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -31,7 +32,10 @@ class HttpEngine:
         if self.token:
             headers.setdefault("Authorization", f"Bearer {self.token}")
             headers.setdefault("X-API-Key", self.token)
-        url = f"{self.base_url}/{request.path.lstrip('/')}"
+        path = request.path
+        if self.token and path.startswith("/api/v2/"):
+            path = f"/{quote(self.token, safe='')}{path}"
+        url = f"{self.base_url}/{path.lstrip('/')}"
         if request.query:
             url = f"{url}?{request.query}"
         response = await self.client.request(request.method, url, content=request.body, headers=headers)
@@ -57,6 +61,7 @@ def _dev_settings() -> Settings:
     import os
 
     os.environ.setdefault("MISAKA_CONTROL_KEY", "development-misaka-key")
+    os.environ.setdefault("MISAKA_PLAYER_TOKEN", "development-misaka-player-token")
     os.environ.setdefault("DANMU_API_TOKEN", "development-danmu-key")
     return Settings()
 

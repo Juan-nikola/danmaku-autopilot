@@ -8,6 +8,7 @@ from danmu_autopilot.config import Settings
 def _set_minimal_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MISAKA_BASE_URL", "http://misaka:7768")
     monkeypatch.setenv("MISAKA_CONTROL_KEY", "secret-control-key")
+    monkeypatch.setenv("MISAKA_PLAYER_TOKEN", "secret-player-token")
     monkeypatch.setenv("DANMU_API_BASE_URL", "http://danmu-api:9321")
     monkeypatch.setenv("DANMU_API_TOKEN", "secret-backup-token")
     monkeypatch.setenv("STATE_DIR", "/data")

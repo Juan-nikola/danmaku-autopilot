@@ -61,6 +61,12 @@ class ComposePolicyTests(unittest.TestCase):
         ):
             self.assertRegex(service.group(1), rf"(?m)^\s+{variable}:\s*{re.escape(value)}$")
 
+    def test_backup_engine_receives_the_token_variable_it_actually_reads(self) -> None:
+        service = re.search(r"(?ms)^  danmu-api:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
+        self.assertIsNotNone(service)
+        self.assertRegex(service.group(1), r"(?m)^\s+DANMU_API_TOKEN:\s*\$\{DANMU_API_TOKEN:")
+        self.assertRegex(service.group(1), r"(?m)^\s+TOKEN:\s*\$\{DANMU_API_TOKEN:")
+
     def test_misaka_healthcheck_does_not_require_wget(self) -> None:
         service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
         self.assertIsNotNone(service)

@@ -11,7 +11,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Protocol
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from .fallback import EngineRequest, ResponseData
 
@@ -89,11 +89,13 @@ class MisakaClient:
         *,
         base_url: str | None = None,
         control_key: str | None = None,
+        player_token: str | None = None,
         http_client: AsyncHttpClient | None = None,
         timeout_seconds: float = 12.0,
     ) -> None:
         self.base_url = str(base_url or getattr(settings, "misaka_base_url", "http://misaka:7768")).rstrip("/")
         self.control_key = _secret_value(control_key if control_key is not None else getattr(settings, "misaka_control_key", ""))
+        self.player_token = _secret_value(player_token if player_token is not None else getattr(settings, "misaka_player_token", ""))
         self.timeout_seconds = timeout_seconds
         self._client = http_client
         self._owns_client = http_client is None
@@ -123,6 +125,16 @@ class MisakaClient:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}{urlencode({'api_key': self.control_key})}"
         return url
+
+    def _player_path(self, path: str) -> str:
+        """Translate the public DanDanPlay v2 path to Misaka's v1 player API."""
+
+        if not path.startswith("/api/v2/"):
+            return path
+        if not self.player_token:
+            raise MisakaUnavailable("Misaka player token is not configured")
+        suffix = path[len("/api/v2") :]
+        return f"/api/v1/{quote(self.player_token, safe='')}{suffix}"
 
     async def _http(self) -> AsyncHttpClient:
         if self._client is None:
@@ -156,7 +168,7 @@ class MisakaClient:
                 kwargs["headers"][key_text] = value.decode(errors="ignore") if isinstance(value, bytes) else str(value)
         if body is not None:
             kwargs["content"] = body
-            kwargs["headers"]["content-type"] = "application/xml; charset=utf-8"
+            kwargs["headers"].setdefault("content-type", "application/octet-stream")
         if json_body is not None:
             kwargs["json"] = json_body
             kwargs["headers"]["content-type"] = "application/json"
@@ -191,7 +203,7 @@ class MisakaClient:
     async def proxy(self, request: EngineRequest) -> ResponseData:
         """Proxy an arbitrary player request while preserving status, headers and bytes."""
 
-        path = request.path or "/"
+        path = self._player_path(request.path or "/")
         control = path.startswith("/api/control/")
         return await self._request(
             request.method.upper(),
@@ -203,7 +215,12 @@ class MisakaClient:
         )
 
     async def search(self, query: str) -> SearchResult:
-        response = await self._request("POST", "/api/control/search", control=True, json_body={"keyword": query}, retries=2)
+        response = await self._request(
+            "GET",
+            f"/api/control/search?{urlencode({'keyword': query})}",
+            control=True,
+            retries=2,
+        )
         try:
             payload = json.loads(response.body or b"{}")
         except (ValueError, TypeError) as exc:
