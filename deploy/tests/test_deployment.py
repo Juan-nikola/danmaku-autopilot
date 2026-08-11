@@ -44,7 +44,8 @@ class ComposePolicyTests(unittest.TestCase):
         service = re.search(r"(?ms)^  misaka:\n(.*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)", self.compose)
         self.assertIsNotNone(service)
         self.assertIn("cap_drop:", service.group(1))
-        self.assertRegex(service.group(1), r"(?m)^\s+- CHOWN$")
+        for capability in ("CHOWN", "SETGID", "SETUID"):
+            self.assertRegex(service.group(1), rf"(?m)^\s+- {capability}$")
 
 
 class CaddyPolicyTests(unittest.TestCase):
