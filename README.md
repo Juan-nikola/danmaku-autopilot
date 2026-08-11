@@ -136,6 +136,12 @@ https://sbd-danmu.sunyz.uk/你的PUBLIC_API_TOKEN
 `PUBLIC_API_TOKEN` 在 VPS 的 `.env` 中；不要把 `MISAKA_CONTROL_KEY`、`DANMU_API_TOKEN` 或 B 站 Cookie 填入播放器。也可以把 Token 放在 `Authorization: Bearer ...` 或 `X-API-Key` 请求头中。
 如果播放器要求把 API 版本写在地址中，也支持 `https://sbd-danmu.sunyz.uk/你的PUBLIC_API_TOKEN/api/v2`；查询参数形式 `https://sbd-danmu.sunyz.uk/api?token=你的PUBLIC_API_TOKEN` 同样兼容。
 
+#### Forward 首次搜索与“禁用弹幕”
+
+首次搜索一个从未出现过的作品时，备用引擎需要并行访问多个来源，可能需要等待约 20 秒；网关会合并 Forward 同时发出的重复搜索，完成后统一返回结果。不要在几秒后连续点击搜索，也不要把“未搜索到弹幕”的旧记录当成最终结果。若旧记录已经显示为未找到，请点右侧垃圾桶删除，再输入作品名重新搜索。
+
+播放页菜单中“禁用弹幕”旁边的勾选表示当前播放器显示开关处于关闭状态，与 API 是否找到弹幕是两件事。弹幕已匹配但仍没有显示时，点一次“禁用弹幕”取消勾选；然后重新播放或拖动进度条触发加载。当前部署已验证“一人之下 S06E14”可匹配到腾讯来源第 14 集并返回 7,761 条弹幕。
+
 ### 日常维护
 
 ```bash
