@@ -1,0 +1,9 @@
+[Unit]
+Description=Transactional Danmaku Autopilot image update
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/danmaku-autopilot
+ExecStart=/bin/bash -lc '/opt/danmaku-autopilot/scripts/resolve-images.sh --lock /opt/danmaku-autopilot/deploy/images.lock && /opt/danmaku-autopilot/scripts/update.sh --apply --engine misaka'

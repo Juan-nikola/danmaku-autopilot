@@ -1,0 +1,25 @@
+{
+	 email {$ACME_EMAIL}
+	 admin off
+	 servers {
+		 trusted_proxies static private_ranges
+	 }
+}
+
+{$DANMU_API_HOST} {
+	 encode gzip zstd
+	 @blocked_control path /api/control* /api/docs* /api/openapi.json /docs* /redoc* /admin*
+	 handle @blocked_control { respond "not found" 404 }
+	 @player_api path /api /api/* /match /search /comment /comments* /healthz
+	 handle @player_api { reverse_proxy autopilot:8080 }
+	 @player_token path_regexp player_token ^/[^/]+/(api|match|search|comment|comments)(/.*)?$
+	 handle @player_token { reverse_proxy autopilot:8080 }
+	 handle { respond "not found" 404 }
+}
+
+{$DANMU_ADMIN_HOST} {
+	 basic_auth {
+		 {$CADDY_ADMIN_USER} {$CADDY_ADMIN_HASH}
+	}
+	 reverse_proxy misaka:7768
+}

@@ -1,0 +1,7 @@
+# Copy to deploy/images.lock during bootstrap. Image references must include an
+# immutable sha256 digest; a mutable :latest reference is rejected by CI.
+MISAKA_RELEASE=unresolved
+MISAKA_IMAGE=l429609201/misaka_danmu_server:latest@sha256:REPLACE_WITH_64_HEX_DIGEST
+DANMU_API_RELEASE=unresolved
+DANMU_API_IMAGE=logvar/danmu-api:latest@sha256:REPLACE_WITH_64_HEX_DIGEST
+MYSQL_IMAGE=mysql:8.1.0-oracle

@@ -1,0 +1,9 @@
+[Unit]
+Description=Danmaku Autopilot health check
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/danmaku-autopilot
+ExecStart=/opt/danmaku-autopilot/scripts/healthcheck.sh

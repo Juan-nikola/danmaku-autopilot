@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Danmaku Autopilot backup
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
